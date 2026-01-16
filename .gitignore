@@ -1,0 +1,5 @@
+/build/
+/pomod
+*.o
+*.swp
+*.swo
