@@ -58,7 +58,7 @@ int64_t timer_elapsed_ms(const pomod_timer_t *t, int64_t now_ms) {
   if (t->state == TIMER_STATE_RUNNING) {
     return t->accumulated_ms + (now_ms - t->started_at_ms);
   }
-  return t->started_at_ms;
+  return t->accumulated_ms;
 }
 
 static int phase_duration_seconds(const pomod_timer_t *t) {
