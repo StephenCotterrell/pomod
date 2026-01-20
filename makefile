@@ -5,7 +5,7 @@ CC := cc
 CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 -g
 
 # Preprocessor flags (header search paths)
-CPPFLAGS := -Iinclude
+CPPFLAGS := -Iinclude -I../include -D_POSIX_C_SOURCE=200809L
 
 # Linker flags (unused for now)
 LDFLAGS :=

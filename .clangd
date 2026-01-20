@@ -1,0 +1,12 @@
+CompileFlags:
+  Add: [-Iinclude, -I../include, -D_POSIX_C_SOURCE=200809L]
+---
+If:
+  PathMatch: .*\.c
+CompileFlags:
+  Add: [-std=c11, -xc]
+---
+If:
+  PathMatch: .*\.h
+CompileFlags:
+  Add: [-xc]
