@@ -1,5 +1,5 @@
 CompileFlags:
-  Add: [-Iinclude, -I../include, -D_POSIX_C_SOURCE=200809L]
+  Add: [-Iinclude, -I../include, -D_POSIX_C_SOURCE=200809L, -D_XOPEN_SOURCE=700]
 ---
 If:
   PathMatch: .*\.c

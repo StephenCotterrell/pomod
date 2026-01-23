@@ -5,13 +5,13 @@ CC := cc
 CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 -g
 
 # Preprocessor flags (header search paths)
-CPPFLAGS := -Iinclude -I../include -D_POSIX_C_SOURCE=200809L
+CPPFLAGS := -Iinclude -I../include -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
 
 # Linker flags (unused for now)
 LDFLAGS :=
 
 # Libraries to link (add notcurses later)
-LDLIBS :=
+LDLIBS := -lnotcurses -lnotcurses-core
 
 # Output binary name
 BIN := pomod
