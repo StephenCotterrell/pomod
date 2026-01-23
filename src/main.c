@@ -222,13 +222,4 @@ int main(int argc, char **argv) {
   printf("\nDone. Press any key to exit.\n");
   notcurses_stop(nc);
   getchar();
-
-  // timer_pause(&t, monotonic_ms());
-  // printf("Paused. \n");
-  //
-  // timer_resume(&t, monotonic_ms());
-  // printf("Resumed. \n");
-  //
-  // timer_stop(&t);
-  // printf("Timer stopped. \n");
 }
