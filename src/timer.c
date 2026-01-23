@@ -90,6 +90,12 @@ bool timer_is_complete(const pomod_timer_t *t, int64_t now_ms) {
 }
 
 void pomod_timer_tick(pomod_timer_t *t, int64_t now_ms) {
-  (void)now_ms;
-  (void)t;
+  if (t->state != TIMER_STATE_RUNNING) {
+    return;
+  }
+
+  if (timer_remaining_ms(t, now_ms) == 0) {
+    t->accumulated_ms = (int64_t)t->focus_seconds * 1000;
+    t->state = TIMER_STATE_STOPPED;
+  }
 }

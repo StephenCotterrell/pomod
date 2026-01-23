@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "timer.h"
 
@@ -40,27 +42,51 @@ static const char *phase_str(timer_phase_t p) {
   }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+  int verbose = 0;
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--verbose") == 0) {
+      verbose = 1;
+    }
+  }
+
   pomod_timer_t t;
   timer_init(&t);
 
   int64_t start = monotonic_ms();
   timer_start(&t, start);
 
-  for (int i = 0; i < 10; i++) {
+  while (1) {
     int64_t now = monotonic_ms();
     pomod_timer_tick(&t, now);
 
     int64_t elapsed = timer_elapsed_ms(&t, now);
     int64_t remaining = timer_remaining_ms(&t, now);
 
-    printf("[%s] phase=%s elapsed=%lldms remaining=%lldms focus_done=%d\n",
-           state_str(t.state), phase_str(t.phase), (long long)elapsed,
-           (long long)remaining, t.completed_focus_sessions);
+    int rem_sec = (int)(remaining / 1000);
+    int el_sec = (int)(elapsed / 1000);
+    int rem_min = rem_sec / 60;
+    int rem_s = rem_sec % 60;
+
+    if (verbose) {
+      printf("remaining=%02d:%02d elapsed=%ds phase=%s state=%s\n", rem_min,
+             rem_s, el_sec, phase_str(t.phase), state_str(t.state));
+    } else {
+      printf("\rremaining=%02d:%02d elapsed=%ds phase=%s state=%s   ", rem_min,
+             rem_s, el_sec, phase_str(t.phase), state_str(t.state));
+      fflush(stdout);
+    }
+
+    if (timer_is_complete(&t, now)) {
+      break;
+    }
 
     struct timespec one_sec = {.tv_sec = 1, .tv_nsec = 0};
     nanosleep(&one_sec, NULL);
   }
+
+  printf("\nDone. Press any key to exit.\n");
+  getchar();
 
   timer_pause(&t, monotonic_ms());
   printf("Paused. \n");
