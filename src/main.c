@@ -47,7 +47,9 @@ static int get_key_nonblocking(void) {
   uint32_t key = notcurses_get_nblock(nc, &ni);
   if (key == 0)
     return -1;
-  return key;
+  if (ni.evtype == NCTYPE_RELEASE)
+    return -1;
+  return (int)key;
 }
 
 static void render_big_time(struct ncplane *std, int y, int x,
