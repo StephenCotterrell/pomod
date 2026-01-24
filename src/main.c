@@ -1,6 +1,7 @@
 #include <notcurses/notcurses.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -179,7 +180,10 @@ int main(int argc, char **argv) {
 
   // Initialising notcurses if not basic or verbose
 
+  unsetenv("NOTCURSES_STATS");
   struct notcurses_options opts = {0};
+  opts.loglevel = NCLOGLEVEL_SILENT;
+  opts.flags |= NCOPTION_SUPPRESS_BANNERS;
   nc = notcurses_init(&opts, NULL);
   if (!nc) {
     fprintf(stderr, "failed to init notcurses\n");
