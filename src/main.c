@@ -12,6 +12,7 @@
 #define NOTE_MAX 80
 
 static struct notcurses *nc;
+static bool emit_phase_logs;
 
 static const char *phase_str(timer_phase_t p) {
   switch (p) {
@@ -126,9 +127,17 @@ static void log_phase_end(const pomod_timer_t *t, int64_t elapsed_ms,
   int sec = (int)(elapsed_ms / 1000);
   int min = sec / 60;
   sec = sec % 60;
-  printf("\nphase_end=%s duration=%02d:%02d note=\"%s\" reason=%s\n",
-         phase_str(t->phase), min, sec, note && note[0] ? note : "",
-         reason == PHASE_ADVANCE_SKIP ? "skip" : "timeout");
+  const char *reason_str = "timeout";
+  if (reason == PHASE_ADVANCE_SKIP) {
+    reason_str = "skip";
+  } else if (reason == PHASE_ADVANCE_SESSION_END) {
+    reason_str = "session_end";
+  }
+  if (emit_phase_logs) {
+    printf("\nphase_end=%s duration=%02d:%02d note=\"%s\" reason=%s\n",
+           phase_str(t->phase), min, sec, note && note[0] ? note : "",
+           reason_str);
+  }
 }
 
 static void advance_phase(pomod_timer_t *t, int64_t now_ms, note_state_t *ns,
@@ -168,6 +177,8 @@ int main(int argc, char **argv) {
     if (strcmp(argv[i], "--basic") == 0)
       basic = 1;
   }
+
+  emit_phase_logs = basic || verbose;
 
   // Initialising timer
   pomod_timer_t t;
