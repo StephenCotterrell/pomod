@@ -300,8 +300,9 @@ int main(int argc, char **argv) {
     nanosleep(&tenth_sec, NULL);
   }
 
-  if (nc)
-    notcurses_stop(nc);
-  printf("\nDone.\n");
+  struct ncplane *std = notcurses_stdplane(nc);
+  ncplane_erase(std);
+  notcurses_render(nc);
+  notcurses_stop(nc);
   return 0;
 }
