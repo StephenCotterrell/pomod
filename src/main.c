@@ -5,6 +5,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "font.h"
 #include "timer.h"
 
 #define NOTE_MAX 80
@@ -45,6 +46,18 @@ static int get_key_nonblocking(void) {
   if (key == 0)
     return -1;
   return key;
+}
+
+static void render_big_time(struct ncplane *std, int y, int x,
+                            const char *time) {
+  for (int row = 0; row < 6; row++) {
+    int cx = x;
+    for (const char *p = time; *p; p++) {
+      int idx = (*p == ':') ? 10 : (*p - '0');
+      ncplane_printf_yx(std, y + row, cx, "%s", BIG_FONT[idx][row]);
+      cx += 10;
+    }
+  }
 }
 
 typedef struct {
@@ -146,11 +159,25 @@ static int64_t monotonic_ms(void) {
 
 int main(int argc, char **argv) {
   int verbose = 0;
+  int basic = 0;
+
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--verbose") == 0) {
+    if (strcmp(argv[i], "--verbose") == 0)
       verbose = 1;
-    }
+    if (strcmp(argv[i], "--basic") == 0)
+      basic = 1;
   }
+
+  // Initialising timer
+  pomod_timer_t t;
+  timer_init(&t);
+  int64_t start = monotonic_ms();
+  timer_start(&t, start);
+
+  // Initialising note
+  note_state_t note_state = {0};
+
+  // Initialising notcurses if not basic or verbose
 
   struct notcurses_options opts = {0};
   nc = notcurses_init(&opts, NULL);
@@ -159,23 +186,39 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  pomod_timer_t t;
-  timer_init(&t);
+  bool running = true;
 
-  int64_t start = monotonic_ms();
-  timer_start(&t, start);
-
-  note_state_t note_state = {0};
-
-  while (1) {
+  while (running) {
     int64_t now = monotonic_ms();
-
     if (t.state == TIMER_STATE_RUNNING && !note_state.input_mode) {
       pomod_timer_tick(&t, now);
       if (t.mode == TIMER_MODE_POMODORO && timer_remaining_ms(&t, now) == 0) {
         advance_phase(&t, now, &note_state, PHASE_ADVANCE_TIMEOUT);
       }
     }
+
+    int64_t elapsed = timer_elapsed_ms(&t, now);
+    int64_t remaining = timer_remaining_ms(&t, now);
+    int rem_sec = (int)(remaining / 1000);
+    int rem_min = rem_sec / 60;
+    int rem_s = rem_sec % 60;
+
+    int el_sec = (int)(elapsed / 1000);
+    int el_min = el_sec / 60;
+    int el_s = el_sec % 60;
+    int min;
+    int sec;
+
+    char timebuf[6];
+    if (t.phase == TIMER_PHASE_STOPWATCH) {
+      min = el_min;
+      sec = el_sec;
+    } else {
+      min = rem_min;
+      sec = rem_sec;
+    }
+
+    snprintf(timebuf, sizeof(timebuf), "%02d:%02d", min, sec);
 
     int key = get_key_nonblocking();
 
@@ -185,31 +228,60 @@ int main(int argc, char **argv) {
         t.state = TIMER_STATE_RUNNING;
       }
     } else {
+      if (key == 'q' || key == 'Q')
+        running = false;
       if (key == ' ') {
         if (t.state == TIMER_STATE_RUNNING)
           timer_pause(&t, now);
         else if (t.state == TIMER_STATE_PAUSED)
           timer_resume(&t, now);
-      } else if (key == 'n' || key == 'N') {
+      } else if (key == 'n' || key == 'N')
         advance_phase(&t, now, &note_state, PHASE_ADVANCE_SKIP);
-      } else if (key == 'i' || key == 'I') {
+      else if (key == 'i' || key == 'I') {
         note_begin(&note_state);
         t.state = TIMER_STATE_PAUSED;
       }
     }
 
-    int64_t elapsed = timer_elapsed_ms(&t, now);
-    int64_t remaining = timer_remaining_ms(&t, now);
+    // rendering branch
+    if (!basic && !verbose) {
+      struct ncplane *std = notcurses_stdplane(nc);
+      ncplane_erase(std);
 
-    int rem_sec = (int)(remaining / 1000);
-    int el_sec = (int)(elapsed / 1000);
-    int rem_min = rem_sec / 60;
-    int rem_s = rem_sec % 60;
+      // setting color
+      if (t.state == TIMER_STATE_PAUSED) {
+        ncplane_set_fg_rgb8(std, 255, 255, 0); // yellow
+      } else if (t.phase == TIMER_PHASE_FOCUS) {
+        ncplane_set_fg_rgb8(std, 0, 255, 0); // green
+      } else if (t.phase == TIMER_PHASE_BREAK) {
+        ncplane_set_fg_rgb8(std, 255, 0, 0); // red
+      } else if (t.phase == TIMER_PHASE_LONG_BREAK) {
+        ncplane_set_fg_rgb8(std, 255, 0, 255); // magenta
+      } else {
+        ncplane_set_fg_rgb8(std, 255, 255, 255);
+      }
 
-    if (verbose) {
+      ncplane_printf_yx(std, 0, 0, "Phase: %s  State: %s", phase_str(t.phase),
+                        state_str(t.state));
+
+      // ncplane_printf_yx(std, 1, 0, "Elapsed: %02d:%02d  Remaining:
+      // %02d:%02d", el_min, el_s, rem_min, rem_s);
+
+      render_big_time(std, 2, 0, timebuf);
+
+      if (note_state.input_mode) {
+        ncplane_printf_yx(std, 3, 0, "Note: %s_", note_state.edit_buf);
+      }
+
+      ncplane_printf_yx(std, 4, 0,
+                        "keys: [space] pause [n] next [i] note [q] quit");
+
+      notcurses_render(nc);
+
+    } else if (verbose) {
       printf("remaining=%02d:%02d elapsed=%ds phase=%s state=%s\n", rem_min,
              rem_s, el_sec, phase_str(t.phase), state_str(t.state));
-    } else {
+    } else if (basic) {
       printf("\rremaining=%02d:%02d elapsed=%ds phase=%s state=%s   ", rem_min,
              rem_s, el_sec, phase_str(t.phase), state_str(t.state));
       fflush(stdout);
@@ -219,7 +291,8 @@ int main(int argc, char **argv) {
     nanosleep(&one_sec, NULL);
   }
 
-  printf("\nDone. Press any key to exit.\n");
-  notcurses_stop(nc);
-  getchar();
+  if (nc)
+    notcurses_stop(nc);
+  printf("\nDone.\n");
+  return 0;
 }
