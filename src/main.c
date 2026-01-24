@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
     if (note_state.input_mode) {
       note_handle_key(&note_state, key);
       if (!note_state.input_mode) {
-        t.state = TIMER_STATE_RUNNING;
+        timer_resume(&t, now);
       }
     } else {
       if (key == 'q' || key == 'Q')
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
         advance_phase(&t, now, &note_state, PHASE_ADVANCE_SKIP);
       else if (key == 'i' || key == 'I') {
         note_begin(&note_state);
-        t.state = TIMER_STATE_PAUSED;
+        timer_pause(&t, now);
       }
     }
 
