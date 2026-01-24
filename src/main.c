@@ -209,15 +209,23 @@ int main(int argc, char **argv) {
     int min;
     int sec;
 
-    char timebuf[6];
-    if (t.phase == TIMER_PHASE_STOPWATCH) {
+    if (t.mode == TIMER_MODE_STOPWATCH) {
       min = el_min;
-      sec = el_sec;
+      sec = el_s;
     } else {
       min = rem_min;
-      sec = rem_sec;
+      sec = rem_s;
     }
 
+    if (min < 0)
+      min = 0;
+    if (sec < 0)
+      sec = 0;
+
+    min %= 100;
+    sec %= 60;
+
+    char timebuf[8];
     snprintf(timebuf, sizeof(timebuf), "%02d:%02d", min, sec);
 
     int key = get_key_nonblocking();
@@ -264,16 +272,13 @@ int main(int argc, char **argv) {
       ncplane_printf_yx(std, 0, 0, "Phase: %s  State: %s", phase_str(t.phase),
                         state_str(t.state));
 
-      // ncplane_printf_yx(std, 1, 0, "Elapsed: %02d:%02d  Remaining:
-      // %02d:%02d", el_min, el_s, rem_min, rem_s);
-
       render_big_time(std, 2, 0, timebuf);
 
       if (note_state.input_mode) {
-        ncplane_printf_yx(std, 3, 0, "Note: %s_", note_state.edit_buf);
+        ncplane_printf_yx(std, 8, 0, "Note: %s_", note_state.edit_buf);
       }
 
-      ncplane_printf_yx(std, 4, 0,
+      ncplane_printf_yx(std, 9, 0,
                         "keys: [space] pause [n] next [i] note [q] quit");
 
       notcurses_render(nc);
@@ -287,8 +292,8 @@ int main(int argc, char **argv) {
       fflush(stdout);
     }
 
-    struct timespec one_sec = {.tv_sec = 1, .tv_nsec = 0};
-    nanosleep(&one_sec, NULL);
+    struct timespec tenth_sec = {.tv_nsec = 100};
+    nanosleep(&tenth_sec, NULL);
   }
 
   if (nc)
