@@ -16,14 +16,6 @@ LDLIBS := -lnotcurses -lnotcurses-core
 # Output binary name
 BIN := pomod
 
-# Dev Compile - suppress warnings 
-RELAXED_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -O2 -g
-
-.PHONY: dev
-dev: CFLAGS := $(RELAXED_CFLAGS)
-dev: $(BIN)
-
-
 # Source files
 SRC := $(wildcard src/*.c)
 
