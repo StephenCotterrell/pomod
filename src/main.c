@@ -62,12 +62,30 @@ static void render_big_time(struct ncplane *std, int y, int x,
   }
 }
 
+typedef enum {
+  PHASE_ADVANCE_TIMEOUT = 0,
+  PHASE_ADVANCE_SKIP = 1,
+  PHASE_ADVANCE_SESSION_END = 2
+} phase_advance_reason_t;
+
 typedef struct {
   bool input_mode;
   char note[NOTE_MAX];
   char edit_buf[NOTE_MAX];
   int edit_len;
 } note_state_t;
+
+typedef struct {
+  timer_phase_t phase;
+  int duration_sec;
+  phase_advance_reason_t reason;
+  char note[NOTE_MAX];
+} session_entry_t;
+
+#define SESSION_LOG_MAX 256
+
+static session_entry_t session_log[SESSION_LOG_MAX];
+static size_t session_log_count;
 
 static void note_begin(note_state_t *ns) {
   ns->input_mode = true;
@@ -93,11 +111,11 @@ static void note_handle_key(note_state_t *ns, int key) {
     note_cancel(ns);
     return;
   }
-  if (key == '\n' || key == '\r') { // ENTER
+  if (key == '\n' || key == '\r' || key == NCKEY_ENTER) { // ENTER
     note_commit(ns);
     return;
   }
-  if (key == 127 || key == 8) {
+  if (key == 127 || key == 8 || key == NCKEY_BACKSPACE) {
     if (ns->edit_len > 0) {
       ns->edit_len--;
       ns->edit_buf[ns->edit_len] = '\0';
@@ -110,11 +128,6 @@ static void note_handle_key(note_state_t *ns, int key) {
     }
   }
 }
-
-typedef enum {
-  PHASE_ADVANCE_TIMEOUT = 0,
-  PHASE_ADVANCE_SKIP = 1
-} phase_advance_reason_t;
 
 static void reset_elapsed(pomod_timer_t *t, int64_t now_ms) {
   t->accumulated_ms = 0;
@@ -144,6 +157,15 @@ static void advance_phase(pomod_timer_t *t, int64_t now_ms, note_state_t *ns,
                           phase_advance_reason_t reason) {
   int64_t elapsed = timer_elapsed_ms(t, now_ms);
   log_phase_end(t, elapsed, ns->note, reason);
+  if (session_log_count < SESSION_LOG_MAX) {
+    session_entry_t *entry = &session_log[session_log_count++];
+    entry->phase = t->phase;
+    entry->duration_sec = (int)(elapsed / 1000);
+    entry->reason = reason;
+    size_t note_len = strnlen(ns->note, NOTE_MAX - 1);
+    memcpy(entry->note, ns->note, note_len);
+    entry->note[note_len] = '\0';
+  }
   ns->note[0] = '\0';
 
   if (t->phase == TIMER_PHASE_FOCUS) {
@@ -251,16 +273,17 @@ int main(int argc, char **argv) {
         timer_resume(&t, now);
       }
     } else {
-      if (key == 'q' || key == 'Q')
+      if (key == 'q' || key == 'Q') {
+        advance_phase(&t, now, &note_state, PHASE_ADVANCE_SESSION_END);
         running = false;
-      if (key == ' ') {
+      } else if (key == ' ') {
         if (t.state == TIMER_STATE_RUNNING)
           timer_pause(&t, now);
         else if (t.state == TIMER_STATE_PAUSED)
           timer_resume(&t, now);
-      } else if (key == 'n' || key == 'N')
+      } else if (key == 'n' || key == 'N') {
         advance_phase(&t, now, &note_state, PHASE_ADVANCE_SKIP);
-      else if (key == 'i' || key == 'I') {
+      } else if (key == 'i' || key == 'I') {
         note_begin(&note_state);
         timer_pause(&t, now);
       }
@@ -315,5 +338,18 @@ int main(int argc, char **argv) {
   ncplane_erase(std);
   notcurses_render(nc);
   notcurses_stop(nc);
+  printf("\nSession summary:\n");
+  for (size_t i = 0; i < session_log_count; i++) {
+    const session_entry_t *entry = &session_log[i];
+    int min = entry->duration_sec / 60;
+    int sec = entry->duration_sec % 60;
+    printf("phase=%s duration=%02d:%02d note=\"%s\" reason=%s\n",
+           phase_str(entry->phase), min, sec,
+           entry->note[0] ? entry->note : "",
+           entry->reason == PHASE_ADVANCE_SKIP
+               ? "skip"
+               : entry->reason == PHASE_ADVANCE_SESSION_END ? "session_end"
+                                                          : "timeout");
+  }
   return 0;
 }
